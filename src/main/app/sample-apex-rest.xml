@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:json="http://www.mulesoft.org/schema/mule/json"
+	xmlns:https="http://www.mulesoft.org/schema/mule/https"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:sfdc="http://www.mulesoft.org/schema/mule/sfdc" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.5.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/https http://www.mulesoft.org/schema/mule/https/current/mule-https.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/sfdc http://www.mulesoft.org/schema/mule/sfdc/current/mule-sfdc.xsd">
+    <sfdc:config name="Salesforce" username="${sfdc.user}"
+		password="${sfdc.password}" securityToken="${sfdc.token}" doc:name="Salesforce">
+		<sfdc:connection-pooling-profile
+			initialisationPolicy="INITIALISE_ONE" exhaustedAction="WHEN_EXHAUSTED_GROW" />
+	</sfdc:config>
+    
+    <flow name="ReuseSFDCConnector" doc:name="ReuseSFDCConnector">
+		<http:inbound-endpoint exchange-pattern="request-response" host="localhost" port="${http.port}" doc:name="HTTP" path="trigger"/>
+		<enricher target="#[flowVars['sfdcSession']]" doc:name="Retrieve sessionId">
+            <component class="processors.GetSalesforceSessionId" doc:name="Retrieve Salesforce Session"/>
+        </enricher>
+		<logger message="sfdcSession = #[flowVars['sfdcSession']]" level="INFO" doc:name="Logger" />
+		<https:outbound-endpoint 
+			exchange-pattern="request-response"
+			method="GET" doc:name="Call SF Apex Rest WS" 
+			contentType="application/json"
+			keep-alive="true" 
+			followRedirects="true"
+			address="${apex.rest.url}">
+			<set-property propertyName="Authorization" value="Bearer #[flowVars['sfdcSession']]" />
+		</https:outbound-endpoint>
+		<json:json-to-object-transformer doc:name="JSON to Object" />
+		<object-to-string-transformer doc:name="Object to String" />
+		<logger message="Payload is : #[payload]" level="INFO" doc:name="Logger" />
+	</flow>
+</mule>
